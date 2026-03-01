@@ -1,0 +1,71 @@
+---
+# SDXL LoRA Training — Test Run (500 steps)
+# Status: SUCCESS — validation run to confirm pipeline works
+#
+# After the FLUX.1-dev OOM failure, switched to SDXL (~3.5B params, ~7GB)
+# as a safer model that fits comfortably in GPU memory. This 500-step test
+# confirmed the full training pipeline works end-to-end before committing
+# to longer runs.
+#
+job: extension
+config:
+  name: "my_character_test"
+  process:
+    - type: 'sd_trainer'
+      training_folder: "/workspace/output"
+      device: cuda:0
+      trigger_word: "TRIGGER_WORD"
+
+      network:
+        type: "lora"
+        linear: 16
+        linear_alpha: 16
+
+      save:
+        dtype: float16
+        save_every: 250
+        max_step_saves_to_keep: 4
+        push_to_hub: false
+
+      datasets:
+        - folder_path: "/workspace/datasets/my_character"
+          caption_ext: "txt"
+          caption_dropout_rate: 0.05
+          shuffle_tokens: false
+          cache_latents_to_disk: true
+          resolution:
+            - 512
+            - 768
+
+      train:
+        batch_size: 1
+        steps: 500
+        gradient_accumulation_steps: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: "ddpm"
+        optimizer: "adamw8bit"
+        lr: 1e-4
+        dtype: bf16
+
+      model:
+        name_or_path: "stabilityai/stable-diffusion-xl-base-1.0"
+        arch: "sdxl"
+        quantize: false
+        low_vram: false
+
+      sample:
+        sampler: "ddpm"
+        sample_every: 250
+        width: 768
+        height: 768
+        prompts:
+          - "a photo of TRIGGER_WORD smiling at a cafe, natural lighting"
+          - "TRIGGER_WORD in a professional headshot, studio lighting, white background"
+          - "a portrait of TRIGGER_WORD outdoors, golden hour, bokeh background"
+        neg: "blurry, low quality, deformed"
+        seed: 42
+        walk_seed: true
+        guidance_scale: 7.5
+        sample_steps: 25

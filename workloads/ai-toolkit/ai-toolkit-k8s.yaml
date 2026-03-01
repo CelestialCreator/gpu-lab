@@ -1,0 +1,74 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-toolkit
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-toolkit
+  namespace: ai-toolkit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-toolkit
+  template:
+    metadata:
+      labels:
+        app: ai-toolkit
+    spec:
+      containers:
+      - name: ai-toolkit
+        image: ostris/aitoolkit:latest
+        ports:
+        - containerPort: 8675
+          name: webui
+        env:
+        - name: AI_TOOLKIT_AUTH
+          value: "YOUR_WEBUI_PASSWORD"
+        - name: NODE_ENV
+          value: "production"
+        - name: HF_HOME
+          value: "/workspace/hf_cache"
+        - name: HF_TOKEN
+          value: "YOUR_HF_TOKEN_HERE"
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "GPU-01b9a2f0-30fe-acf6-0080-279a43ad5d4f"
+        resources:
+          limits:
+            nvidia.com/gpu: "1"
+            memory: "30Gi"
+          requests:
+            nvidia.com/gpu: "1"
+            memory: "8Gi"
+        volumeMounts:
+        - name: ai-toolkit-data
+          mountPath: /workspace
+        - name: dshm
+          mountPath: /dev/shm
+      volumes:
+      - name: ai-toolkit-data
+        hostPath:
+          path: /data/ai-toolkit
+          type: DirectoryOrCreate
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-toolkit
+  namespace: ai-toolkit
+spec:
+  type: NodePort
+  selector:
+    app: ai-toolkit
+  ports:
+  - port: 8675
+    targetPort: 8675
+    nodePort: 30675
+    name: webui

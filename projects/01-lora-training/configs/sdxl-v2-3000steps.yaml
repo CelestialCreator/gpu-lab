@@ -1,0 +1,70 @@
+---
+# SDXL LoRA Training — v2 (3000 steps)
+# Status: SUCCESS — improved quality over 500-step test
+#
+# After validating the pipeline with 500 steps, increased to 3000 steps
+# with a higher LoRA rank (32) for better detail capture. Added
+# gradient accumulation and adjusted learning rate schedule.
+#
+job: extension
+config:
+  name: "my_character_v2"
+  process:
+    - type: 'sd_trainer'
+      training_folder: "/workspace/output"
+      device: cuda:0
+      trigger_word: "TRIGGER_WORD"
+
+      network:
+        type: "lora"
+        linear: 32
+        linear_alpha: 32
+
+      save:
+        dtype: float16
+        save_every: 500
+        max_step_saves_to_keep: 4
+        push_to_hub: false
+
+      datasets:
+        - folder_path: "/workspace/datasets/my_character"
+          caption_ext: "txt"
+          caption_dropout_rate: 0.05
+          shuffle_tokens: false
+          cache_latents_to_disk: true
+          resolution:
+            - 512
+            - 768
+
+      train:
+        batch_size: 1
+        steps: 3000
+        gradient_accumulation_steps: 2
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: "ddpm"
+        optimizer: "adamw8bit"
+        lr: 5e-5
+        dtype: bf16
+
+      model:
+        name_or_path: "stabilityai/stable-diffusion-xl-base-1.0"
+        arch: "sdxl"
+        quantize: false
+        low_vram: false
+
+      sample:
+        sampler: "ddpm"
+        sample_every: 500
+        width: 1024
+        height: 1024
+        prompts:
+          - "a photo of TRIGGER_WORD smiling at a cafe, natural lighting"
+          - "TRIGGER_WORD in a professional headshot, studio lighting, white background"
+          - "a portrait of TRIGGER_WORD outdoors, golden hour, bokeh background"
+        neg: "blurry, low quality, deformed"
+        seed: 42
+        walk_seed: true
+        guidance_scale: 7.5
+        sample_steps: 25

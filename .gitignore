@@ -1,0 +1,29 @@
+# Model weights
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.gguf
+*.bin
+
+# Audio
+*.mp3
+*.wav
+
+# Logs and databases
+*.log
+*.db
+
+# Python
+__pycache__/
+*.pyc
+
+# HuggingFace cache
+hf_cache/
+
+# Dataset images excluded (captions are committed)
+projects/*/dataset/**/*.png
+projects/*/dataset/**/*.jpg
+
+# Allow screenshots in assets/
+!assets/**/*.png

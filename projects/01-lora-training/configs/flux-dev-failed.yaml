@@ -1,0 +1,79 @@
+---
+# FLUX.1-dev LoRA Training Config
+# Status: FAILED — OOM on 16GB system RAM
+#
+# FLUX.1-dev (~12B params, ~24GB) exceeded available system memory during
+# model loading. Even with quantization and low_vram mode, the initial
+# CPU-side weight loading phase required 20-30GB RAM, causing swap thrashing
+# and freezing the entire system including the Kubernetes API server.
+#
+# See docs/04-known-issues.md for the full debugging story.
+#
+job: extension
+config:
+  name: "my_character_v1"
+  process:
+    - type: 'sd_trainer'
+      training_folder: "/workspace/ai-toolkit/output"
+      device: cuda:0
+      trigger_word: "TRIGGER_WORD"
+
+      # --- Network (LoRA) Settings ---
+      network:
+        type: "lora"
+        linear: 32
+        linear_alpha: 32
+
+      # --- Save Settings ---
+      save:
+        dtype: float16
+        save_every: 250
+        max_step_saves_to_keep: 4
+        push_to_hub: false
+
+      # --- Dataset ---
+      datasets:
+        - folder_path: "/workspace/ai-toolkit/datasets/my_character"
+          caption_ext: "txt"
+          caption_dropout_rate: 0.05
+          shuffle_tokens: false
+          cache_latents_to_disk: true
+          resolution:
+            - 512
+            - 768
+
+      # --- Training Hyperparameters ---
+      train:
+        batch_size: 1
+        steps: 1500
+        gradient_accumulation_steps: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: "flowmatch"
+        optimizer: "adamw8bit"
+        lr: 1e-4
+        dtype: bf16
+
+      # --- Base Model ---
+      model:
+        name_or_path: "black-forest-labs/FLUX.1-dev"
+        is_flux: true
+        quantize: true
+        low_vram: true
+
+      # --- Sampling Preview ---
+      sample:
+        sampler: "flowmatch"
+        sample_every: 250
+        width: 768
+        height: 768
+        prompts:
+          - "a photo of TRIGGER_WORD smiling at a cafe, natural lighting"
+          - "TRIGGER_WORD in a professional headshot, studio lighting, white background"
+          - "a portrait of TRIGGER_WORD outdoors, golden hour, bokeh background"
+        neg: ""
+        seed: 42
+        walk_seed: true
+        guidance_scale: 4
+        sample_steps: 20

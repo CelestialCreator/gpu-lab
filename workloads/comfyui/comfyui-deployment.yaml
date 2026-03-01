@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comfyui
+  namespace: comfyui
+  labels:
+    app: comfyui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: comfyui
+  template:
+    metadata:
+      labels:
+        app: comfyui
+    spec:
+      containers:
+      - name: comfyui
+        image: mmartial/comfyui-nvidia-docker:ubuntu24_cuda12.8-latest
+        ports:
+        - containerPort: 8188
+          name: http
+        env:
+        - name: USE_UV
+          value: "true"
+        - name: WANTED_UID
+          value: "1000"
+        - name: WANTED_GID
+          value: "1000"
+        - name: BASE_DIRECTORY
+          value: "/workspace"
+        - name: SECURITY_LEVEL
+          value: "normal"
+        - name: FORCE_CHOWN
+          value: "yes"
+        resources:
+          limits:
+            nvidia.com/gpu: "1"
+          requests:
+            nvidia.com/gpu: "1"
+        volumeMounts:
+        - name: comfyui-data
+          mountPath: /workspace
+        - name: comfyui-run
+          mountPath: /comfy/mnt
+        - name: dshm
+          mountPath: /dev/shm
+      volumes:
+      - name: comfyui-data
+        hostPath:
+          path: /data/comfyui
+          type: DirectoryOrCreate
+      - name: comfyui-run
+        hostPath:
+          path: /data/comfyui/run
+          type: DirectoryOrCreate
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 8Gi
