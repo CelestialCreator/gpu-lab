@@ -1,0 +1,104 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: grpo-train
+  namespace: default
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: grpo-train
+        image: localhost:5000/grpo-reasoning:latest
+        imagePullPolicy: Always
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          set -ex
+
+          echo "=== GPU info ==="
+          python3 -c "import torch; print(f'GPU: {torch.cuda.get_device_name(0)}'); print(f'VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB')"
+
+          echo "=== Package versions ==="
+          python3 -c "import transformers, trl; print(f'transformers={transformers.__version__}'); print(f'trl={trl.__version__}')"
+
+          # Phase 1: SFT warmup (if SFT data exists and SFT not already done)
+          SFT_MODEL=/workspace/sft-output/final
+          if [ -d "/workspace/sft-data" ] && [ ! -d "${SFT_MODEL}" ] && [ -f "/workspace/sft-data/sft_combined.jsonl" ]; then
+            echo "=== Phase 1: SFT warmup on Claude reasoning chains ==="
+            python3 -u /opt/grpo/scripts/train_sft.py \
+              --model_name Qwen/Qwen3.5-0.8B \
+              --sft_data /workspace/sft-data/sft_combined.jsonl \
+              --output_dir /workspace/sft-output \
+              --num_train_epochs 1 \
+              --per_device_train_batch_size 2 \
+              --gradient_accumulation_steps 4 \
+              --learning_rate 2e-5
+            echo "=== SFT warmup complete ==="
+          fi
+
+          # Pick starting model: SFT'd model if available, else base
+          if [ -d "${SFT_MODEL}" ]; then
+            MODEL_PATH=${SFT_MODEL}
+            echo "=== Using SFT-warmed model for GRPO ==="
+          else
+            MODEL_PATH=Qwen/Qwen3.5-0.8B
+            echo "=== Using base model for GRPO (no SFT data found) ==="
+          fi
+
+          # Phase 2: GRPO training
+          echo "=== Phase 2: GRPO training ==="
+          python3 -u /opt/grpo/scripts/train_grpo.py \
+            --model_name ${MODEL_PATH} \
+            --output_dir /workspace/grpo-output \
+            --num_generations 8 \
+            --max_completion_length 512 \
+            --per_device_train_batch_size 1 \
+            --gradient_accumulation_steps 8 \
+            --num_train_epochs 3 \
+            --learning_rate 1e-6 \
+            --save_steps 100 \
+            --logging_steps 10 \
+            --use_format_reward \
+            --wandb_project grpo-qwen35-math
+
+          echo "=== Training complete ==="
+          ls -la /workspace/grpo-output/final/
+        env:
+        - name: HF_TOKEN
+          value: "${HF_TOKEN}"
+        - name: HF_HOME
+          value: /workspace/hf_cache
+        - name: WANDB_API_KEY
+          value: "${WANDB_API_KEY}"
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: ${GPU_UUID}
+        resources:
+          requests:
+            memory: 10Gi
+            nvidia.com/gpu: "1"
+          limits:
+            memory: 14Gi
+            nvidia.com/gpu: "1"
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        - name: sft-data
+          mountPath: /workspace/sft-data
+          readOnly: true
+        - name: dshm
+          mountPath: /dev/shm
+      volumes:
+      - name: workspace
+        hostPath:
+          path: /home/akshay/grpo-workspace
+          type: DirectoryOrCreate
+      - name: sft-data
+        hostPath:
+          path: /home/akshay/grpo-sft-data
+          type: Directory
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 2Gi

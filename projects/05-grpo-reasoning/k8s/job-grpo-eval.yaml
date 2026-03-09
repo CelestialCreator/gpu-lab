@@ -1,0 +1,80 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: grpo-eval
+  namespace: default
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: grpo-eval
+        image: localhost:5000/grpo-reasoning:latest
+        imagePullPolicy: Always
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          set -ex
+
+          OUTPUT_BASE=/workspace/eval-results
+          mkdir -p ${OUTPUT_BASE}
+
+          echo "=== GPU info ==="
+          python3 -c "import torch; print(f'GPU: {torch.cuda.get_device_name(0)}')"
+
+          # Baseline results already available (53.5% 8-shot, 52.1% 0-shot)
+          # Eval: GRPO checkpoint-15900 (epoch 2.13)
+          GRPO_MODEL=/workspace/grpo-output/checkpoint-15900
+
+          echo "=== Eval 1: GRPO (8-shot CoT) ==="
+          python3 -u /opt/grpo/scripts/eval_gsm8k.py \
+            --model_name ${GRPO_MODEL} \
+            --output_file ${OUTPUT_BASE}/grpo_8shot.json \
+            --batch_size 1 \
+            2>&1 | tee ${OUTPUT_BASE}/grpo_8shot.log
+
+          echo "=== Eval 2: GRPO (zero-shot) ==="
+          python3 -u /opt/grpo/scripts/eval_gsm8k.py \
+            --model_name ${GRPO_MODEL} \
+            --output_file ${OUTPUT_BASE}/grpo_0shot.json \
+            --zero_shot \
+            --batch_size 1 \
+            2>&1 | tee ${OUTPUT_BASE}/grpo_0shot.log
+
+          # Print comparison
+          echo ""
+          echo "=== RESULTS SUMMARY ==="
+          for f in ${OUTPUT_BASE}/*.json; do
+            echo "$(basename $f): $(python3 -c "import json; d=json.load(open('$f')); print(f'{d[\"accuracy\"]:.1%} ({d[\"correct\"]}/{d[\"total\"]})')")"
+          done
+
+          echo "=== Evaluation complete ==="
+        env:
+        - name: HF_TOKEN
+          value: "${HF_TOKEN}"
+        - name: HF_HOME
+          value: /workspace/hf_cache
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: ${GPU_UUID}
+        resources:
+          requests:
+            memory: 12Gi
+            nvidia.com/gpu: "1"
+          limits:
+            memory: 14Gi
+            nvidia.com/gpu: "1"
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        - name: dshm
+          mountPath: /dev/shm
+      volumes:
+      - name: workspace
+        hostPath:
+          path: /home/akshay/grpo-workspace
+          type: DirectoryOrCreate
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 2Gi

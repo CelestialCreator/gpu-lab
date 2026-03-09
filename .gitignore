@@ -27,3 +27,6 @@ projects/*/dataset/**/*.jpg
 
 # Allow screenshots in assets/
 !assets/**/*.png
+
+# Environment secrets
+.env
