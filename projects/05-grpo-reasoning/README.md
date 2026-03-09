@@ -7,12 +7,15 @@ Teaching Qwen3.5-0.8B to reason using **GRPO (Group Relative Policy Optimization
 
 ## Results
 
-| Model | GSM8K 8-shot CoT | GSM8K Zero-shot |
-|-------|:-----------------:|:---------------:|
-| Qwen3.5-0.8B (baseline) | 53.5% | 52.1% |
-| **+ SFT + GRPO (ours)** | 50.4% | **58.0% (+5.9pp)** |
+| Model | GSM8K 8-shot CoT | GSM8K Zero-shot | Notes |
+|-------|:-----------------:|:---------------:|-------|
+| Qwen3.5-0.8B (baseline) | 53.5% | 52.1% | Pre-trained model, no fine-tuning |
+| + SFT only | not evaluated | not evaluated | Teaches `<think>` format (see Lessons below) |
+| **+ SFT + GRPO (ours)** | 50.4% (-3.1pp) | **58.0% (+5.9pp)** | Internalized reasoning ability |
 
-The model was trained to reason using `<think>` tags. Zero-shot performance improved significantly because the model internalized step-by-step reasoning — it no longer needs few-shot examples. The 8-shot drop is expected: few-shot examples conflict with the model's learned reasoning format.
+The model was trained to reason using `<think>` tags. Zero-shot performance improved by **+5.9 percentage points** — the model internalized step-by-step reasoning and no longer needs few-shot examples. The 8-shot CoT score dropped by 3.1pp because few-shot examples conflict with the model's learned `<think>` tag reasoning format.
+
+> **Note:** We did not evaluate the SFT-only checkpoint separately, so we cannot isolate SFT's contribution from GRPO's. See [Lessons Learned](#lessons-learned) for honest analysis.
 
 ## Overview
 
@@ -27,16 +30,20 @@ Only 2 models in memory (policy + reference) instead of 4, making it feasible on
 ## Training Pipeline
 
 ### Phase 1: SFT Warmup
-- **Data:** 3,558 reasoning examples (1K Claude-generated math chains + 250 TeichAI Opus reasoning + 2.3K Opus 4.6 Reasoning)
-- **Purpose:** Teach the model `<think>` tag format before RL
+- **Data:** 3,558 reasoning examples from 3 sources, standardized to `<think>` tags
+  - 1,000 Claude Sonnet-generated math reasoning chains (originally `<thought>` tags, converted to `<think>` by `merge_sft_data.py`)
+  - ~250 from TeichAI/claude-4.5-opus-high-reasoning-250x (already `<think>` format)
+  - ~2,300 from nohurry/Opus-4.6-Reasoning-3000x-filtered (separate thinking/solution fields, combined into `<think>` format)
+- **Purpose:** Teach the model `<think>` tag format before RL — solves the cold-start problem where a 0.8B model can't discover reasoning patterns via pure RL exploration
 - **Stats:** 1 epoch, loss 0.932, 78% token accuracy
+- **Caveat:** We did not eval this checkpoint separately — see [Lessons Learned](#lessons-learned)
 
 ### Phase 2: GRPO Training
 - **Data:** GSM8K train split (7,473 math word problems)
 - **Rewards:** Math correctness (1.0/0.0) + format reward (0.3 for `<think>` tags, 0.2 for `####` answer)
 - **Config:** 8 generations/prompt, batch size 1 x 8 grad accum, lr 1e-6, beta 0.04
 - **Hardware:** Single NVIDIA RTX 5090 (32GB VRAM)
-- **Duration:** ~77 hours, stopped at epoch 2.13 (checkpoint-15900)
+- **Duration:** ~77 hours, stopped at epoch 2.13 after power cut (checkpoint-15900, rewards had plateaued)
 
 ## Quick Start
 
@@ -93,12 +100,23 @@ kubectl logs -f job/grpo-eval
 | `k8s/job-grpo-train.yaml` | K8s training job (SFT → GRPO pipeline) |
 | `k8s/job-grpo-eval.yaml` | K8s evaluation job |
 
-## Key Findings
+## Lessons Learned
 
+### What worked
+- **GRPO improved zero-shot reasoning** — +5.9pp on GSM8K zero-shot, showing the model internalized step-by-step thinking
+- **Format + correctness rewards together** — the 0.3 bonus for `<think>` tags + 0.2 for `####` format helped the model learn structured reasoning alongside math accuracy
+- **Single consumer GPU is viable** — full SFT + GRPO pipeline ran on one RTX 5090 with room to spare (~10-12 GB used out of 32 GB)
+
+### What we'd do differently
+- **Eval after SFT** — We skipped evaluating the SFT-only checkpoint. Without this, we can't tell if SFT helped or hurt baseline performance before GRPO. In hindsight, this is a critical missing data point. If SFT already degraded 8-shot performance (by overwriting the model's few-shot ability with `<think>` format), then the 8-shot drop may be from SFT, not GRPO.
+- **Try GRPO without SFT** — An ablation comparing "base → GRPO" vs "base → SFT → GRPO" would show if SFT warmup is truly necessary at 0.8B scale, or if it's an unnecessary step that trades few-shot ability for format compliance.
+- **Larger model** — 0.8B is near the capacity ceiling. The model learned the format but had limited headroom to improve math accuracy. DeepSeek-R1 used 670B; the smallest successful open reproductions start at 1.5B+.
+
+### Technical findings
 - **Qwen3.5-0.8B uses DeltaNet** (hybrid Gated DeltaNet + Gated Attention). Install `flash-linear-attention` + `causal-conv1d` for fast generation — without FLA, torch fallback is ~10x slower.
 - **SDPA is faster than FLA for inference** (3.6x on first call). Use `attn_implementation="sdpa"` for eval.
-- **0.8B may be near capacity ceiling for GRPO** — the model can internalize reasoning format but has limited room to improve math accuracy. Consider 1.5B+ for stronger gains.
-- **Zero-shot is the right eval for RL-trained models** — few-shot examples conflict with learned reasoning patterns.
+- **Zero-shot is the right eval for RL-trained reasoning models** — few-shot examples conflict with learned `<think>` tag patterns, making 8-shot an unfair comparison.
+- **Rewards plateau around epoch 1.2** — math_reward stabilized at ~0.45-0.53, suggesting diminishing returns beyond 2 epochs for this model size.
 
 ## VRAM Budget (~10-12 GB on RTX 5090)
 
