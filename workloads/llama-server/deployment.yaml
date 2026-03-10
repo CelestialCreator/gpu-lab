@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama-server
+  namespace: default
+  labels:
+    app: llama-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llama-server
+  template:
+    metadata:
+      labels:
+        app: llama-server
+    spec:
+      containers:
+      - name: llama-server
+        image: localhost:5000/llama-server:latest
+        args:
+        - --model
+        - /workspace/models/Qwen3.5-35B-A3B-GGUF/Qwen3.5-35B-A3B-Q8_0.gguf
+        - --port
+        - "8080"
+        - --host
+        - "0.0.0.0"
+        - --temp
+        - "0.6"
+        - --top-p
+        - "0.95"
+        - --top-k
+        - "20"
+        - --cache-type-k
+        - q8_0
+        - --cache-type-v
+        - q8_0
+        - --ctx-size
+        - "16384"
+        - -ngl
+        - "99"
+        - --tensor-split
+        - "32,8"
+        env:
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "${GPU_UUID}"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0,1"
+        resources:
+          limits:
+            nvidia.com/gpu: "2"
+            memory: 12Gi
+          requests:
+            nvidia.com/gpu: "2"
+            memory: 8Gi
+        ports:
+        - containerPort: 8080
+          name: http
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        - name: dshm
+          mountPath: /dev/shm
+      volumes:
+      - name: workspace
+        hostPath:
+          path: /home/akshay/llama-workspace
+          type: DirectoryOrCreate
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama-server
+  namespace: default
+spec:
+  type: NodePort
+  selector:
+    app: llama-server
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30080

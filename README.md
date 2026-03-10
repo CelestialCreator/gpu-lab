@@ -30,11 +30,11 @@ A learning lab for AI/ML on consumer hardware. Instead of cloud GPU rentals, eve
 │  │  CNI: Cilium 1.18.5 | GPU: NVIDIA Device Plugin    │   │
 │  │                                                     │   │
 │  │  ┌─────────────┐ ┌─────────────┐ ┌──────────────┐  │   │
-│  │  │ Training    │ │ Inference   │ │ Services     │  │   │
-│  │  │ Jobs        │ │ Jobs        │ │              │  │   │
-│  │  │ - SFT/GRPO  │ │ - Eval      │ │ - ChatterBox │  │   │
-│  │  │ - LoRA      │ │ - Benchmark │ │ - ComfyUI    │  │   │
-│  │  │ - MTP       │ │             │ │              │  │   │
+│  │  │ Training    │ │ Inference    │ │ Services     │  │   │
+│  │  │ Jobs        │ │              │ │              │  │   │
+│  │  │ - SFT/GRPO  │ │ - llama-srv  │ │ - ChatterBox │  │   │
+│  │  │ - LoRA      │ │   (Qwen3.5)  │ │ - ComfyUI    │  │   │
+│  │  │ - MTP       │ │              │ │              │  │   │
 │  │  └──────┬──────┘ └──────┬──────┘ └──────┬───────┘  │   │
 │  └─────────┼───────────────┼───────────────┼──────────┘   │
 │            │               │               │               │
@@ -73,6 +73,7 @@ A learning lab for AI/ML on consumer hardware. Instead of cloud GPU rentals, eve
 | [NVIDIA Device Plugin](kubernetes/nvidia-device-plugin/) | Helm install for nvdp 0.17.1 |
 | [AI-Toolkit](workloads/ai-toolkit/) | Kubernetes deployment for LoRA training |
 | [ComfyUI](workloads/comfyui/) | Kubernetes deployment for image/audio generation |
+| [llama-server](workloads/llama-server/) | Qwen3.5-35B-A3B inference via llama.cpp (multi-GPU) |
 | [System Configs](system/) | containerd, sysctl, modprobe configs |
 
 ## Tech Stack
@@ -107,7 +108,7 @@ gpu-lab/
 ├── docs/                    # Infrastructure setup guides
 ├── system/                  # OS-level configs (sysctl, containerd, modprobe)
 ├── kubernetes/              # Helm install docs (Cilium, NVIDIA plugin)
-├── workloads/               # Kubernetes manifests (AI-Toolkit, ComfyUI)
+├── workloads/               # Kubernetes manifests (AI-Toolkit, ComfyUI, llama-server)
 ├── projects/                # Self-contained learning modules
 │   ├── 01-lora-training/    # LoRA fine-tuning on SDXL
 │   ├── 02-dataset-creation/ # Training dataset pipeline
