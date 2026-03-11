@@ -22,28 +22,38 @@ A learning lab for AI/ML on consumer hardware. Instead of cloud GPU rentals, eve
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  Debian 13 — Kernel 6.12 — NVIDIA Driver 590.48          │
-│                                                           │
-│  ┌────────────────────────────────────────────────────┐   │
-│  │  Kubernetes v1.35.0 (kubeadm, single-node)         │   │
-│  │  CNI: Cilium 1.18.5 | GPU: NVIDIA Device Plugin    │   │
-│  │                                                     │   │
-│  │  ┌─────────────┐ ┌─────────────┐ ┌──────────────┐  │   │
-│  │  │ Training    │ │ Inference   │ │ Services     │  │   │
-│  │  │ Jobs        │ │ Jobs        │ │              │  │   │
-│  │  │ - SFT/GRPO  │ │ - Eval      │ │ - ChatterBox │  │   │
-│  │  │ - LoRA      │ │ - Benchmark │ │ - ComfyUI    │  │   │
-│  │  │ - MTP       │ │             │ │              │  │   │
-│  │  └──────┬──────┘ └──────┬──────┘ └──────┬───────┘  │   │
-│  └─────────┼───────────────┼───────────────┼──────────┘   │
-│            │               │               │               │
-│  ┌─────────▼───┐  ┌───────▼─────┐  ┌──────▼──────┐       │
-│  │  RTX 5090   │  │  RTX 5090   │  │  RTX 3080   │       │
-│  │  32GB VRAM  │  │  32GB VRAM  │  │  10GB VRAM  │       │
-│  │  Training   │  │  Eval       │  │  Inference  │       │
-│  └─────────────┘  └─────────────┘  └─────────────┘       │
-└──────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│  Debian 13 — Kernel 6.12 — NVIDIA Driver 590.48              │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │  Kubernetes v1.35.0 (kubeadm, single-node)              │  │
+│  │  CNI: Cilium 1.18.5 | GPU: NVIDIA Device Plugin         │  │
+│  │                                                          │  │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌─────────────────┐  │  │
+│  │  │ Training     │ │ Inference    │ │ Services        │  │  │
+│  │  │              │ │              │ │                  │  │  │
+│  │  │ - SFT/GRPO   │ │ - llama-srv  │ │ - ChatterBox    │  │  │
+│  │  │ - LoRA       │ │   (Qwen3.5)  │ │ - ComfyUI       │  │  │
+│  │  │ - MTP        │ │ - Ollama     │ │ - AI-Toolkit    │  │  │
+│  │  └──────────────┘ └──────────────┘ └─────────────────┘  │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│                                                               │
+│  ┌─────────────────── GPU Pool (50 GB VRAM) ──────────────┐  │
+│  │                                                         │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │  │
+│  │  │  RTX 5090   │  │  RTX 3080   │  │  RTX 2070S  │    │  │
+│  │  │  32 GB      │  │  10 GB      │  │  8 GB       │    │  │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘    │  │
+│  │                                                         │  │
+│  │  GPUs are dynamically assigned to workloads via         │  │
+│  │  UUID pinning + NVIDIA Device Plugin. Typical configs:  │  │
+│  │                                                         │  │
+│  │  Training:   5090 (32GB)          — SFT, GRPO, LoRA    │  │
+│  │  Inference:  5090 + 2070S (40GB)  — llama-server        │  │
+│  │  Services:   3080 (10GB)          — ChatterBox, Ollama  │  │
+│  │  Full pool:  all 3 GPUs (50GB)    — large model serving │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ## Projects
@@ -73,6 +83,7 @@ A learning lab for AI/ML on consumer hardware. Instead of cloud GPU rentals, eve
 | [NVIDIA Device Plugin](kubernetes/nvidia-device-plugin/) | Helm install for nvdp 0.17.1 |
 | [AI-Toolkit](workloads/ai-toolkit/) | Kubernetes deployment for LoRA training |
 | [ComfyUI](workloads/comfyui/) | Kubernetes deployment for image/audio generation |
+| [llama-server](workloads/llama-server/) | Qwen3.5-35B-A3B inference via llama.cpp (multi-GPU) |
 | [System Configs](system/) | containerd, sysctl, modprobe configs |
 
 ## Tech Stack
@@ -107,7 +118,7 @@ gpu-lab/
 ├── docs/                    # Infrastructure setup guides
 ├── system/                  # OS-level configs (sysctl, containerd, modprobe)
 ├── kubernetes/              # Helm install docs (Cilium, NVIDIA plugin)
-├── workloads/               # Kubernetes manifests (AI-Toolkit, ComfyUI)
+├── workloads/               # Kubernetes manifests (AI-Toolkit, ComfyUI, llama-server)
 ├── projects/                # Self-contained learning modules
 │   ├── 01-lora-training/    # LoRA fine-tuning on SDXL
 │   ├── 02-dataset-creation/ # Training dataset pipeline
