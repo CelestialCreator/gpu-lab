@@ -49,7 +49,7 @@ A learning lab for AI/ML on consumer hardware. Instead of cloud GPU rentals, eve
 │  │  UUID pinning + NVIDIA Device Plugin. Typical configs:  │  │
 │  │                                                         │  │
 │  │  Training:   5090 (32GB)          — SFT, GRPO, LoRA    │  │
-│  │  Inference:  5090 + 2070S (40GB)  — llama-server        │  │
+│  │  Inference:  5090 + 3080 (42GB)   — llama-server        │  │
 │  │  Services:   3080 (10GB)          — ChatterBox, Ollama  │  │
 │  │  Full pool:  all 3 GPUs (50GB)    — large model serving │  │
 │  └─────────────────────────────────────────────────────────┘  │
@@ -65,6 +65,7 @@ A learning lab for AI/ML on consumer hardware. Instead of cloud GPU rentals, eve
 | 03 | [Music Generation](projects/03-music-generation/) | Done | ACE-Step 1.5 music generation via ComfyUI |
 | 04 | [Multi-Token Prediction](projects/04-multi-token-prediction/) | Done | Reproduced Meta's MTP paper on single RTX 5090 (1.8x inference speedup) |
 | 05 | [GRPO Reasoning](projects/05-grpo-reasoning/) | Done | Taught Qwen3.5-0.8B to reason like DeepSeek-R1 (+5.9pp zero-shot GSM8K) |
+| 06 | [TurboQuant KV Cache](projects/06-turboquant/) | In Progress | Google's TurboQuant on consumer GPUs — 3.25x more context for Qwen3.5-27B |
 
 ## Documentation
 
@@ -83,7 +84,7 @@ A learning lab for AI/ML on consumer hardware. Instead of cloud GPU rentals, eve
 | [NVIDIA Device Plugin](kubernetes/nvidia-device-plugin/) | Helm install for nvdp 0.17.1 |
 | [AI-Toolkit](workloads/ai-toolkit/) | Kubernetes deployment for LoRA training |
 | [ComfyUI](workloads/comfyui/) | Kubernetes deployment for image/audio generation |
-| [llama-server](workloads/llama-server/) | Qwen3.5-35B-A3B inference via llama.cpp (multi-GPU) |
+| [llama-server](workloads/llama-server/) | Qwen3.5-27B inference via llama.cpp (multi-GPU, TurboQuant KV cache) |
 | [System Configs](system/) | containerd, sysctl, modprobe configs |
 
 ## Tech Stack
@@ -107,6 +108,7 @@ A learning lab for AI/ML on consumer hardware. Instead of cloud GPU rentals, eve
 
 - [x] **Multi-Token Prediction** — Reproduced MTP via Self-Distillation (1.8x inference speedup)
 - [x] **GRPO Reasoning** — SFT + GRPO on Qwen3.5-0.8B, zero-shot GSM8K 52.1% → 58.0%
+- [ ] **TurboQuant KV Cache** — Compress KV cache 5x for longer context on consumer GPUs (in progress)
 - [ ] **Model Abliteration** — Remove refusals from multimodal models for domain-specific use
 - [ ] **Multi-node Kubernetes** — Scale beyond single server
 - [ ] **Automated training pipelines** — CronJob-based retraining workflows
@@ -124,7 +126,8 @@ gpu-lab/
 │   ├── 02-dataset-creation/ # Training dataset pipeline
 │   ├── 03-music-generation/ # ACE-Step music generation
 │   ├── 04-multi-token-prediction/  # MTP paper reproduction
-│   └── 05-grpo-reasoning/   # GRPO reasoning training (DeepSeek-R1 technique)
+│   ├── 05-grpo-reasoning/   # GRPO reasoning training (DeepSeek-R1 technique)
+│   └── 06-turboquant/       # TurboQuant KV cache compression (Google, ICLR 2026)
 ├── model-cards/             # HuggingFace model card templates
 └── assets/                  # Screenshots and diagrams
 ```

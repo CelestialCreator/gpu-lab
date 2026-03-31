@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: llama-server
-        image: localhost:5000/llama-server:latest
+        image: localhost:5000/llama-server:turboquant
         args:
         - --model
         - /workspace/models/Qwen3.5-27B-GGUF/Qwen3.5-27B-Q8_0.gguf
@@ -34,9 +34,9 @@ spec:
         - --top-k
         - "20"
         - --cache-type-k
-        - q8_0
+        - turbo3
         - --cache-type-v
-        - q8_0
+        - turbo3
         - --ctx-size
         - "262144"
         - -ngl
